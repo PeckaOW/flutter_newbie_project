@@ -24,7 +24,8 @@ class LoginScreen extends HookWidget {
         );
 
         authError.value = 'Login Completed!';
-        // Navigate to home screen or handle login success
+        Navigator.push(
+            context, MaterialPageRoute(builder: (context) => MainPage()));
       } on FirebaseAuthException catch (e) {
         authError.value = e.message;
       }
@@ -33,6 +34,11 @@ class LoginScreen extends HookWidget {
           content: Text(authError.value ??
               'An error has occured during the login procedure.'));
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }
+
+    Future<void> _register() async {
+      Navigator.push(
+          context, MaterialPageRoute(builder: (context) => AccountScreen()));
     }
 
     return Scaffold(
@@ -53,9 +59,21 @@ class LoginScreen extends HookWidget {
               obscureText: true,
             ),
             SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _login,
-              child: Text('Login'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: _login,
+                  child: Text('Login'),
+                ),
+                SizedBox(
+                  width: 20,
+                ),
+                ElevatedButton(
+                  onPressed: _register,
+                  child: Text('Register'),
+                ),
+              ],
             ),
           ],
         ),

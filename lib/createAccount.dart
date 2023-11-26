@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_newbie_project/login.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -88,15 +89,39 @@ class AccountScreen extends HookWidget {
         ScaffoldMessenger.of(context).showSnackBar(snackBar);
       } else {
         try {
-          await FirebaseAuth.instance.signInWithEmailAndPassword(
-            email: emailController.text,
-            password: passwordController.text,
-          );
+          UserCredential userCredential = await FirebaseAuth.instance
+              .createUserWithEmailAndPassword(
+                  email: emailController.text,
+                  password: passwordController.text); //fireauth에 등록
 
-          authError.value = 'Account Creation Completed!';
-          Navigator.pop(context);
+          FirebaseFirestore.instance.collection('_userid').doc('users').update({
+            "users": FieldValue.arrayUnion([idController.text])
+          }); //_userid 추가하기
+
+          //이하는 _userinfo
+          FirebaseFirestore.instance
+              .collection('_userinfo')
+              .doc(emailController.text)
+              .set({
+            'accepted': [],
+            'accountNumber': accountNumberController.text,
+            'message': [],
+            'ratings': [],
+            'ratingAvg': 0,
+            'requested': [],
+            'securityCode': 12341234,
+            'userid': idController.text,
+          });
+
+          authError.value = 'Registration Complete!';
         } on FirebaseAuthException catch (e) {
-          authError.value = e.message;
+          if (e.code == 'weak-password') {
+            authError.value = 'The password provided is too weak.';
+          } else if (e.code == 'email-already-in-use') {
+            authError.value = 'The account already exists for that email.';
+          }
+        } catch (e) {
+          authError.value = e.toString();
         }
 
         final snackBar = SnackBar(
@@ -107,7 +132,20 @@ class AccountScreen extends HookWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Create Account')),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(
+                  builder: (context) => LoginScreen(
+                        email: emailController.text,
+                        password: passwordController.text,
+                      )),
+              (Route<dynamic> route) => false),
+        ),
+        title: Text("Register"),
+        centerTitle: true,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

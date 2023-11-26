@@ -8,10 +8,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-//import 'package:firebase_storage/firebase_storage.dart'
+import 'package:firebase_storage/firebase_storage.dart';
 
 import 'login.dart';
-import 'createAccount.dart';
+import 'postCard.dart';
+//import 'createAccount.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,117 +27,262 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Simbureum',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a blue toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: AccountScreen(),
-      //LoginScreen(email: "", password: ""),
-      //const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: //AccountScreen(),
+          LoginScreen(email: "", password: ""),
+      //ListPage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class Post {
+  Post({required this.title, required this.contents, required this.userEmail, required this.userID, required this.price}); //image 파일도 추가!
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  String title;
+  String contents;
+  String userEmail;
+  String userID;
+  int price; //원 단위
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class PostCard extends StatelessWidget {
+  const PostCard({super.key, required this.post});
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  final Post post; //이미지도 고려할 것!
+
+  @override
+  Widget build(BuildContext context){
+    return Card(
+      child: ListTile(onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (context) => PostPage(post : post)));
+      },),
+    );
   }
+}
+
+class MainPage extends HookWidget {
+  const MainPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+
+
+    //List<Todo> list = [ex1];
+    final updated = useState<bool>(true); //정보 추가 시, reload, delete시마다 부를 state
+
+    final TextEditingController _textFieldController1 = TextEditingController();
+    final TextEditingController _textFieldController2 = TextEditingController();
+
+    var user = FirebaseAuth.instance.currentUser;
+
+    Future<DocumentSnapshot> getUserData() async {
+      if (user != null) {
+        return FirebaseFirestore.instance
+            .collection('_userinfo')
+            .doc(user.email)
+            .get();
+      }
+      throw Exception('Not logged in');
+    }
+
+    Future _signOut() async {
+      await FirebaseAuth.instance.signOut();
+    }
+
+    void onLogOut() async { //로그아웃 버튼 누를 시
+      try {
+        _signOut();
+        Navigator.pop(context);
+      } catch (e) {
+        print(e.toString());
+      }
+    }
+
+    void _onDelete(Todo todo) { //삭제 버튼 누를 시
+      todos.value.remove(todo);
+      if (user != null) {
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.email)
+            .update({"${todo.title}": FieldValue.delete()});
+      }
+      updated = false;
+      todos.notifyListeners();
+    }
+
+    void _addTodoItem(String title, String memo) {
+      if (user != null) {
+        FirebaseFirestore.instance.collection('users').doc(user.email).set({
+          title: {'memo': memo, 'done': false}
+        }, SetOptions(merge: true));
+      }
+      updated = false;
+      todos.notifyListeners();
+    }
+
+    void retrieveUserData() {
+      getUserData().then((snapshot) {
+        if (snapshot.exists) {
+          Map<String, dynamic> userData =
+              snapshot.data() as Map<String, dynamic>;
+          userData.forEach((key, value) {
+            todos.value.add(Todo(
+                title: key.toString(),
+                done: value['done'],
+                memo: value['memo']));
+          });
+          todos.notifyListeners();
+          print(todos.value);
+          // Use your user data here, e.g., update the state or UI
+        } else {
+          todos.value = [ex1];
+          // Handle the case where the user does not have data in the Firestore document
+        }
+      }).catchError((error) {
+        // Handle errors here, e.g., show an error message
+      });
+    }
+
+    Future<void> _displayDialog() async {
+      return showDialog<void>(
+        context: context,
+        //T: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Add a todo'),
+            content: Column(
+              children: [
+                TextField(
+                  controller: _textFieldController1,
+                  decoration: const InputDecoration(hintText: 'Type todo'),
+                  autofocus: true,
+                ),
+                TextField(
+                  controller: _textFieldController2,
+                  decoration: const InputDecoration(hintText: "Type your memo"),
+                  autofocus: true,
+                )
+              ],
+            ),
+            actions: <Widget>[
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  todos.notifyListeners();
+                  _addTodoItem(
+                      _textFieldController1.text, _textFieldController2.text);
+                },
+                child: const Text('Add'),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    if (!updated) {
+      todos.value = [];
+      retrieveUserData();
+      updated = true;
+    } //only retrieve once
+
+    return Scaffold(
+        appBar: AppBar(
+          centerTitle: true,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              const Text("To-Do List"),
+              IconButton(
+                icon: Icon(Icons.person_2_rounded),
+                onPressed: () => onLogin,
+              ),
+              if (user != null)
+                Text(
+                  "${user.email}",
+                  style: TextStyle(fontSize: 10.0),
+                ),
+            ],
+          ),
+        ),
+        body: ListView(
+          children: 
+
+              todos.value
+                  .map((Todo todo) => TodoCard(
+                        todo: todo,
+                        onChecked: _onCheckbox,
+                        onDeleted: _onDelete,
+                      ))
+                  .toList(),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => _displayDialog(),
+          tooltip: 'Add new to-do',
+          child: const Icon(Icons.add),
+        ));
+  }
+
+
+class MemoPage extends StatelessWidget {
+  const MemoPage({super.key, required this.todo});
+
+  final Todo todo;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+        title: Text(todo.title),
+        leading: IconButton(
+          onPressed: () {
+            Navigator.pop(context);
+          },
+          icon: const Icon(Icons.arrow_back),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Column(
+            children: [
+              Text(
+                "Completed : ${todo.done}",
+                style: TextStyle(color: Colors.red),
+              ),
+              SizedBox(
+                height: 20,
+              ),
+              Center(
+                child: Text(
+                  "Your memo : ${todo.memo}",
+                  style: TextStyle(fontSize: 20.0, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
