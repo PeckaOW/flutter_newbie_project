@@ -225,9 +225,11 @@ class MainPage extends HookWidget {
                 ),
                 onPressed: () {
                   Navigator.of(context).pop();
-                  todos.notifyListeners();
-                  _addPost(_textFieldController1.text,
-                      _textFieldController2.text, userID);
+                  _addPost(
+                      _textFieldControllerT.text,
+                      _textFieldControllerC.text,
+                      int.parse(_textFieldControllerP.text),
+                      userID);
                 },
                 child: const Text('Add'),
               ),
