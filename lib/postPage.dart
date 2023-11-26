@@ -7,8 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class ProductDescriptionPage extends StatelessWidget {
-  ProductDescriptionPage(
+class PostPage extends StatelessWidget {
+  PostPage(
       {super.key,
       required this.title,
       required this.contents,
@@ -52,7 +52,7 @@ class ProductDescriptionPage extends StatelessWidget {
               .set({
             "acceptedBy": user.email,
             "state": 'In Progress',
-          });
+          }, SetOptions(merge: true));
           errorMessage = 'Task Accepted!';
         } catch (e) {
           errorMessage = e.toString();

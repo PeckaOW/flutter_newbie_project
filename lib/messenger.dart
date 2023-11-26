@@ -45,7 +45,21 @@ class MessengerPage extends HookWidget {
       }
     }
 
-    void completeDeal() async {}
+    void completeDeal() async {
+      String errorMessage = '';
+
+      try {
+        await FirebaseFirestore.instance.collection('_posts').doc(postID).set({
+          "state": 'Complete',
+        });
+        errorMessage = 'Task Ended!';
+      } catch (e) {
+        errorMessage = e.toString();
+      }
+
+      final snackBar = SnackBar(content: Text(errorMessage));
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }
 
     if (snapshot.connectionState == ConnectionState.waiting) {
       return Scaffold(
@@ -76,11 +90,12 @@ class MessengerPage extends HookWidget {
             title: Text('Messages with $otherID')),
         body: Column(
           children: [
-            Center(
-                child: IconButton(
-              icon: const Icon(Icons.check),
-              onPressed: completeDeal,
-            )),
+            if (requestedID == myID)
+              Center(
+                  child: IconButton(
+                icon: const Icon(Icons.check),
+                onPressed: completeDeal,
+              )),
             Expanded(
               child: ListView.builder(
                 itemCount: messages.length,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:image_picker/image_picker.dart';
 import 'firebase_options.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -40,28 +41,20 @@ class MyApp extends StatelessWidget {
 }
 
 class Post {
-  Post({required this.title, required this.contents, required this.userEmail, required this.userID, required this.price}); //image 파일도 추가!
+  Post(
+      {required this.title,
+      required this.contents,
+      required this.userEmail,
+      required this.userID,
+      required this.price,
+      required this.postID}); //image 파일도 추가!
 
   String title;
   String contents;
   String userEmail;
   String userID;
   int price; //원 단위
-}
-
-class PostCard extends StatelessWidget {
-  const PostCard({super.key, required this.post});
-
-  final Post post; //이미지도 고려할 것!
-
-  @override
-  Widget build(BuildContext context){
-    return Card(
-      child: ListTile(onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => PostPage(post : post)));
-      },),
-    );
-  }
+  String postID;
 }
 
 class MainPage extends HookWidget {
@@ -69,18 +62,34 @@ class MainPage extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-
-
-    //List<Todo> list = [ex1];
     final updated = useState<bool>(true); //정보 추가 시, reload, delete시마다 부를 state
 
-    final TextEditingController _textFieldController1 = TextEditingController();
-    final TextEditingController _textFieldController2 = TextEditingController();
+    final TextEditingController _textFieldControllerT =
+        TextEditingController(); //title
+    final TextEditingController _textFieldControllerC =
+        TextEditingController(); //contents
+    final TextEditingController _textFieldControllerP =
+        TextEditingController(); //price
 
     var user = FirebaseAuth.instance.currentUser;
+    String userID = 'undefined';
+    String userEmail = 'undefined';
+
+    List<Post> myPosts = [];
+    List<Post> acceptedPosts = [];
+    List<Post> newPosts = [];
+
+    /*
+    final documentStream = useMemoized(() => FirebaseFirestore.instance
+        .collection('_userID')
+        .doc(postID)
+        .snapshots());
+    final snapshot = useStream(documentStream);
+    */
 
     Future<DocumentSnapshot> getUserData() async {
       if (user != null) {
+        userEmail = user.email;
         return FirebaseFirestore.instance
             .collection('_userinfo')
             .doc(user.email)
@@ -89,20 +98,45 @@ class MainPage extends HookWidget {
       throw Exception('Not logged in');
     }
 
+    Future<List<dynamic>> getPostData() async {
+      CollectionReference _collectionRef =
+          FirebaseFirestore.instance.collection('_posts');
+      QuerySnapshot querySnapshot = await _collectionRef.get();
+      return querySnapshot.docs.map((doc) => (doc.id, doc.data())).toList();
+    }
+
     Future _signOut() async {
       await FirebaseAuth.instance.signOut();
     }
 
-    void onLogOut() async { //로그아웃 버튼 누를 시
+    void retrieveUserID() {
+      getUserData().then((snapshot) {
+        if (snapshot.exists) {
+          Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
+          userID = data?['userid'];
+        } else {
+          userID = 'undefined';
+        }
+      }).catchError((error) {
+        userID = 'undefined';
+        final snackBar = SnackBar(content: Text(error));
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      });
+    }
+
+    void onLogOut() async {
+      //로그아웃 버튼 누를 시
       try {
         _signOut();
         Navigator.pop(context);
       } catch (e) {
-        print(e.toString());
+        final snackBar = SnackBar(content: Text(e.toString()));
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
       }
     }
 
-    void _onDelete(Todo todo) { //삭제 버튼 누를 시
+    void _onDelete(Todo todo) {
+      //삭제 버튼 누를 시
       todos.value.remove(todo);
       if (user != null) {
         FirebaseFirestore.instance
@@ -110,40 +144,38 @@ class MainPage extends HookWidget {
             .doc(user.email)
             .update({"${todo.title}": FieldValue.delete()});
       }
-      updated = false;
+      updated.value = true;
       todos.notifyListeners();
     }
 
-    void _addTodoItem(String title, String memo) {
+    void _addPost(String title, String contents, int price, String userID) {
       if (user != null) {
-        FirebaseFirestore.instance.collection('users').doc(user.email).set({
-          title: {'memo': memo, 'done': false}
-        }, SetOptions(merge: true));
+        FirebaseFirestore.instance
+            .collection('_posts')
+            .doc('$userID${DateTime.now().millisecondsSinceEpoch}')
+            .set({
+          'acceptedBy': '',
+          'contents': contents,
+          'email': user.email,
+          'price': price,
+          'state': 'New',
+          'title': title,
+          'userid': userID,
+        });
       }
-      updated = false;
-      todos.notifyListeners();
+      updated.value = true;
     }
 
-    void retrieveUserData() {
-      getUserData().then((snapshot) {
-        if (snapshot.exists) {
-          Map<String, dynamic> userData =
-              snapshot.data() as Map<String, dynamic>;
-          userData.forEach((key, value) {
-            todos.value.add(Todo(
-                title: key.toString(),
-                done: value['done'],
-                memo: value['memo']));
-          });
-          todos.notifyListeners();
-          print(todos.value);
-          // Use your user data here, e.g., update the state or UI
+    void retrievePosts() {
+      List<dynamic> posts = getPostData() as List<dynamic>;
+      posts.forEach((element) {
+        if (element[1]['email'] == userEmail) {
+          myPosts.add(element);
+        } else if (element[1]['acceptedBy'] == userEmail) {
+          acceptedPosts.add(element);
         } else {
-          todos.value = [ex1];
-          // Handle the case where the user does not have data in the Firestore document
+          newPosts.add(element);
         }
-      }).catchError((error) {
-        // Handle errors here, e.g., show an error message
       });
     }
 
@@ -153,17 +185,22 @@ class MainPage extends HookWidget {
         //T: false,
         builder: (BuildContext context) {
           return AlertDialog(
-            title: const Text('Add a todo'),
+            title: const Text('Add a Post'),
             content: Column(
               children: [
                 TextField(
-                  controller: _textFieldController1,
-                  decoration: const InputDecoration(hintText: 'Type todo'),
+                  controller: _textFieldControllerT,
+                  decoration: const InputDecoration(hintText: 'Type Title'),
                   autofocus: true,
                 ),
                 TextField(
-                  controller: _textFieldController2,
-                  decoration: const InputDecoration(hintText: "Type your memo"),
+                  controller: _textFieldControllerC,
+                  decoration: const InputDecoration(hintText: "Type Contents"),
+                  autofocus: true,
+                ),
+                TextField(
+                  controller: _textFieldControllerP,
+                  decoration: const InputDecoration(hintText: "Type Price"),
                   autofocus: true,
                 )
               ],
@@ -189,8 +226,8 @@ class MainPage extends HookWidget {
                 onPressed: () {
                   Navigator.of(context).pop();
                   todos.notifyListeners();
-                  _addTodoItem(
-                      _textFieldController1.text, _textFieldController2.text);
+                  _addPost(_textFieldController1.text,
+                      _textFieldController2.text, userID);
                 },
                 child: const Text('Add'),
               ),
@@ -199,12 +236,6 @@ class MainPage extends HookWidget {
         },
       );
     }
-
-    if (!updated) {
-      todos.value = [];
-      retrieveUserData();
-      updated = true;
-    } //only retrieve once
 
     return Scaffold(
         appBar: AppBar(
@@ -215,7 +246,7 @@ class MainPage extends HookWidget {
               const Text("To-Do List"),
               IconButton(
                 icon: Icon(Icons.person_2_rounded),
-                onPressed: () => onLogin,
+                onPressed: () => onLogOut(),
               ),
               if (user != null)
                 Text(
@@ -226,63 +257,18 @@ class MainPage extends HookWidget {
           ),
         ),
         body: ListView(
-          children: 
-
-              todos.value
-                  .map((Todo todo) => TodoCard(
-                        todo: todo,
-                        onChecked: _onCheckbox,
-                        onDeleted: _onDelete,
-                      ))
-                  .toList(),
+          children: todos.value
+              .map((Post post) => PostCard(
+                    post: post,
+                    onChecked: _onCheckbox,
+                    onDeleted: _onDelete,
+                  ))
+              .toList(),
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () => _displayDialog(),
-          tooltip: 'Add new to-do',
+          tooltip: 'Add new Post',
           child: const Icon(Icons.add),
         ));
-  }
-
-
-class MemoPage extends StatelessWidget {
-  const MemoPage({super.key, required this.todo});
-
-  final Todo todo;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(todo.title),
-        leading: IconButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          icon: const Icon(Icons.arrow_back),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Center(
-          child: Column(
-            children: [
-              Text(
-                "Completed : ${todo.done}",
-                style: TextStyle(color: Colors.red),
-              ),
-              SizedBox(
-                height: 20,
-              ),
-              Center(
-                child: Text(
-                  "Your memo : ${todo.memo}",
-                  style: TextStyle(fontSize: 20.0, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
