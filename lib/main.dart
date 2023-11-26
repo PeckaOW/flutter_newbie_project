@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_newbie_project/postPage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'firebase_options.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
-
-import 'package:image_picker/image_picker.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -17,7 +15,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'login.dart';
 import 'postCard.dart';
 import 'messenger.dart';
-import 'postPage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -91,8 +88,6 @@ class MainPage extends HookWidget {
         TextEditingController(); //contents
     final TextEditingController _textFieldControllerP =
         TextEditingController(); //price
-
-    XFile? pickedImage = null;
 
     final userID = useState<String>('undefined');
     final user = FirebaseAuth.instance.currentUser;
@@ -199,13 +194,28 @@ class MainPage extends HookWidget {
       return null;
     }
 
-    void _addPost(
-      String title,
-      String contents,
-      int price,
-      String userID,
-      /*XFile? image*/
-    ) {
+    Future<void> uploadImageToFirestore(String fileName) async {
+      XFile? pickedImage = await pickImage();
+      if (pickedImage != null) {
+        Reference storageReference =
+            FirebaseStorage.instance.ref().child('images/$fileName');
+
+        UploadTask uploadTask =
+            storageReference.putFile(File(pickedImage.path));
+        TaskSnapshot taskSnapshot = await uploadTask.whenComplete(() {});
+        String imageUrl = await taskSnapshot.ref.getDownloadURL();
+
+        await FirebaseFirestore.instance
+            .collection('_images')
+            .doc(fileName)
+            .set({'imageUrl': imageUrl});
+      } else {
+        print('No image picked!');
+      }
+    }
+
+    void _addPost(String title, String contents, int price, String userID,
+        bool addImage) {
       if (user != null) {
         String docID = '$userID${DateTime.now().millisecondsSinceEpoch}';
         FirebaseFirestore.instance.collection('_posts').doc(docID).set({
@@ -219,9 +229,9 @@ class MainPage extends HookWidget {
           'userid': userID,
         });
 
-        //if (image != null){
-        //my
-        //}
+        if (addImage) {
+          uploadImageToFirestore(docID);
+        }
       }
     }
 
@@ -369,20 +379,30 @@ class MainPage extends HookWidget {
                 decoration: const InputDecoration(hintText: "Type Price"),
                 autofocus: true,
               ),
-              //IconButton(onPressed:() { pickedImage = await pickImage();}
-              //        ,icon: Icon(Icons.image))
             ]),
             actions: <Widget>[
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 onPressed: () {
                   Navigator.of(context).pop();
+                  try {
+                    _addPost(
+                        _textFieldControllerT.text,
+                        _textFieldControllerC.text,
+                        int.parse(_textFieldControllerP.text),
+                        userID.value,
+                        false);
+                  } catch (e) {
+                    final snackBar =
+                        SnackBar(content: Text('Price must be Integer!'));
+                    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+                  }
                 },
-                child: const Text('Cancel'),
+                child: const Text('Add'),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -397,14 +417,26 @@ class MainPage extends HookWidget {
                         _textFieldControllerT.text,
                         _textFieldControllerC.text,
                         int.parse(_textFieldControllerP.text),
-                        userID.value);
+                        userID.value,
+                        true);
                   } catch (e) {
                     final snackBar =
                         SnackBar(content: Text('Price must be Integer!'));
                     ScaffoldMessenger.of(context).showSnackBar(snackBar);
                   }
                 },
-                child: const Text('Add'),
+                child: const Text('Add with Photo'),
+              ),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Cancel'),
               ),
             ],
           );

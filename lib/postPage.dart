@@ -115,6 +115,7 @@ class PostPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            /*
             FutureBuilder<String>(
               future: _loadImage(imageUrl),
               builder: (BuildContext context, AsyncSnapshot<String> snapshot) {
@@ -128,7 +129,8 @@ class PostPage extends StatelessWidget {
                   return const Text('No data available');
                 }
               },
-            ),
+            ),*/
+            const CircularProgressIndicator(),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Text(
