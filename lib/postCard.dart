@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'firebase_options.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -38,7 +39,7 @@ class PostCard extends StatelessWidget {
 
   @override
   double userRating = 5.0;
-
+  bool updated = false;
   Future<DocumentSnapshot> getUserData() async {
     return FirebaseFirestore.instance
         .collection('_userinfo')
@@ -46,19 +47,28 @@ class PostCard extends StatelessWidget {
         .get();
   }
 
-  void retrieveUserRating() {
+  void retrieveUserRating() async {
     getUserData().then((snapshot) {
-      if (snapshot.data() == null) {}
+      if (snapshot.data() == null) {
+        updated = true;
+      }
       if (snapshot.exists) {
         Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
         userRating = data?['ratingAvg'];
+        updated = true;
       }
     }).catchError((error) {
       userRating = 5.0;
+      updated = true;
     });
   }
 
+  @override
   Widget build(BuildContext context) {
+    if (!updated) {
+      retrieveUserRating();
+    }
+
     return Card(
       //card를 제거하면 그냥 테두리 없는 글씨처럼 된다!
       child: ListTile(

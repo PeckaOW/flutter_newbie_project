@@ -13,6 +13,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 
 import 'login.dart';
 import 'postCard.dart';
+import 'messenger.dart';
 //import 'createAccount.dart';
 
 void main() async {
@@ -47,7 +48,9 @@ class Post {
       required this.userEmail,
       required this.userID,
       required this.price,
-      required this.postID}); //image 파일도 추가!
+      required this.postID,
+      required this.state,
+      required this.otherID}); //image 파일도 추가!
 
   String title;
   String contents;
@@ -55,6 +58,8 @@ class Post {
   String userID;
   int price; //원 단위
   String postID;
+  String state;
+  String otherID;
 }
 
 class MainPage extends HookWidget {
@@ -73,7 +78,7 @@ class MainPage extends HookWidget {
 
     var user = FirebaseAuth.instance.currentUser;
     String userID = 'undefined';
-    String userEmail = 'undefined';
+    String? userEmail = 'undefined';
 
     List<Post> myPosts = [];
     List<Post> acceptedPosts = [];
@@ -98,6 +103,13 @@ class MainPage extends HookWidget {
       throw Exception('Not logged in');
     }
 
+    Future<DocumentSnapshot> getOtherData(String email) async {
+      return FirebaseFirestore.instance
+          .collection('_userinfo')
+          .doc(email)
+          .get();
+    }
+
     Future<List<dynamic>> getPostData() async {
       CollectionReference _collectionRef =
           FirebaseFirestore.instance.collection('_posts');
@@ -109,7 +121,7 @@ class MainPage extends HookWidget {
       await FirebaseAuth.instance.signOut();
     }
 
-    void retrieveUserID() {
+    void retrieveUserID() async {
       getUserData().then((snapshot) {
         if (snapshot.exists) {
           Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
@@ -124,6 +136,20 @@ class MainPage extends HookWidget {
       });
     }
 
+    Future<String?> retrieveUserIDof(String email) async {
+      getOtherData(email).then((snapshot) {
+        if (snapshot.exists) {
+          Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
+          return data?['userid'];
+        } else {
+          return 'undefined';
+        }
+      }).catchError((error) {
+        return 'undefined';
+      });
+      return 'undefined';
+    }
+
     void onLogOut() async {
       //로그아웃 버튼 누를 시
       try {
@@ -135,17 +161,10 @@ class MainPage extends HookWidget {
       }
     }
 
-    void _onDelete(Todo todo) {
+    void _onDelete(String postID) async {
       //삭제 버튼 누를 시
-      todos.value.remove(todo);
-      if (user != null) {
-        FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.email)
-            .update({"${todo.title}": FieldValue.delete()});
-      }
-      updated.value = true;
-      todos.notifyListeners();
+      FirebaseFirestore.instance.collection('_posts').doc(postID).delete();
+      updated.value = false;
     }
 
     void _addPost(String title, String contents, int price, String userID) {
@@ -163,18 +182,42 @@ class MainPage extends HookWidget {
           'userid': userID,
         });
       }
-      updated.value = true;
+      updated.value = false;
     }
 
-    void retrievePosts() {
+    void retrievePosts() async {
       List<dynamic> posts = getPostData() as List<dynamic>;
       posts.forEach((element) {
         if (element[1]['email'] == userEmail) {
-          myPosts.add(element);
+          myPosts.add(Post(
+              contents: element[1]['contents'],
+              title: element[1]['title'],
+              userEmail: element[1]['email'],
+              userID: element[1]['userid'],
+              price: element[1]['price'],
+              postID: element[0],
+              state: element[1]['state'],
+              otherID: retrieveUserIDof(element[1]['acceptedBy']) as String));
         } else if (element[1]['acceptedBy'] == userEmail) {
-          acceptedPosts.add(element);
+          acceptedPosts.add(Post(
+              contents: element[1]['contents'],
+              title: element[1]['title'],
+              userEmail: element[1]['email'],
+              userID: element[1]['userid'],
+              price: element[1]['price'],
+              postID: element[0],
+              state: element[1]['state'],
+              otherID: userID));
         } else {
-          newPosts.add(element);
+          newPosts.add(Post(
+              contents: element[1]['contents'],
+              title: element[1]['title'],
+              userEmail: element[1]['email'],
+              userID: element[1]['userid'],
+              price: element[1]['price'],
+              postID: element[0],
+              state: element[1]['state'],
+              otherID: 'undefined'));
         }
       });
     }
@@ -225,11 +268,17 @@ class MainPage extends HookWidget {
                 ),
                 onPressed: () {
                   Navigator.of(context).pop();
-                  _addPost(
-                      _textFieldControllerT.text,
-                      _textFieldControllerC.text,
-                      int.parse(_textFieldControllerP.text),
-                      userID);
+                  try {
+                    _addPost(
+                        _textFieldControllerT.text,
+                        _textFieldControllerC.text,
+                        int.parse(_textFieldControllerP.text),
+                        userID);
+                  } catch (e) {
+                    final snackBar =
+                        SnackBar(content: Text('Price must be Integer!'));
+                    ScaffoldMessenger.of(context).showSnackBar(snackBar);
+                  }
                 },
                 child: const Text('Add'),
               ),
@@ -239,13 +288,21 @@ class MainPage extends HookWidget {
       );
     }
 
+    if (!updated.value) {
+      myPosts = [];
+      acceptedPosts = [];
+      newPosts = [];
+      retrievePosts();
+      updated.value = true;
+    }
+
     return Scaffold(
         appBar: AppBar(
           centerTitle: true,
           title: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              const Text("To-Do List"),
+              const Text("Simbureum"),
               IconButton(
                 icon: Icon(Icons.person_2_rounded),
                 onPressed: () => onLogOut(),
@@ -258,14 +315,79 @@ class MainPage extends HookWidget {
             ],
           ),
         ),
-        body: ListView(
-          children: todos.value
-              .map((Post post) => PostCard(
-                    post: post,
-                    onChecked: _onCheckbox,
-                    onDeleted: _onDelete,
-                  ))
-              .toList(),
+        body: Column(
+          children: [
+            ListView(
+              children: myPosts
+                  .map((Post post) => Row(children: [
+                        PostCard(
+                          post: post,
+                        ),
+                        if (post.state == 'New')
+                          IconButton(
+                            icon: Icon(Icons.delete),
+                            onPressed: () => _onDelete(post.postID),
+                          ),
+                        if (post.state == 'In Progress')
+                          IconButton(
+                            icon: Icon(Icons.history_rounded),
+                            onPressed: () {
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => MessengerPage(
+                                            myID: post.userID,
+                                            postID: post.postID,
+                                            otherID: post.otherID,
+                                          ))); //postPage라는 파일 만들 것!
+                            },
+                          ),
+                      ]))
+                  .toList(),
+            ),
+            const Divider(
+              thickness: 2,
+              height: 1,
+              color: Colors.black,
+            ),
+            ListView(
+              children: acceptedPosts
+                  .map((Post post) => Row(children: [
+                        PostCard(
+                          post: post,
+                        ),
+                        if (post.state == 'In Progress')
+                          IconButton(
+                            icon: Icon(Icons.history_rounded),
+                            onPressed: () {
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => MessengerPage(
+                                            myID: post.userID,
+                                            postID: post.postID,
+                                            otherID: post.otherID,
+                                          ))); //postPage라는 파일 만들 것!
+                            },
+                          ),
+                      ]))
+                  .toList(),
+            ),
+            const Divider(
+              thickness: 2,
+              height: 1,
+              color: Colors.black,
+            ),
+            ListView(
+              children: newPosts
+                  .map((Post post) => Row(children: [
+                        PostCard(
+                          post: post,
+                        ),
+                      ]))
+                  .toList(),
+            ),
+          ],
         ),
         floatingActionButton: FloatingActionButton(
           onPressed: () => _displayDialog(),
