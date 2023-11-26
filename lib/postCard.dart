@@ -39,12 +39,6 @@ class PostCard extends StatelessWidget {
 
   //double userRating = 5.0;
   //bool updated = false;
-  Future<DocumentSnapshot> getUserData() async {
-    return FirebaseFirestore.instance
-        .collection('_userinfo')
-        .doc(post.userEmail)
-        .get();
-  }
 
   /*
   void retrieveUserRating() async {
@@ -72,33 +66,36 @@ class PostCard extends StatelessWidget {
     }
     */
 
-    return Card(
-      //card를 제거하면 그냥 테두리 없는 글씨처럼 된다!
-      child: ListTile(
-        onTap: () {
-          Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => PostPage(
-                        title: post.title,
-                        contents: post.contents,
-                        price: post.price,
-                        userID: post.userID,
-                        postID: post.postID,
-                        rating: 5.0,
-                      ))); //postPage라는 파일 만들 것!
-        },
-        //leading:사진
-        title: Text(post.title),
-        titleAlignment: ListTileTitleAlignment.center,
-        subtitle: Text(
-          post.contents,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-        ),
-        isThreeLine: true,
-        trailing: Text(post.userID),
-      ),
-    );
+    return SizedBox(
+        width: 300.0,
+        child: Card(
+          //card를 제거하면 그냥 테두리 없는 글씨처럼 된다!
+          child: ListTile(
+            onTap: () {
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => PostPage(
+                            title: post.title,
+                            contents: post.contents,
+                            price: post.price,
+                            userID: post.userID,
+                            postID: post.postID,
+                            rating: 5.0,
+                            state: post.state,
+                          ))); //postPage라는 파일 만들 것!
+            },
+            //leading:사진
+            title: Text(post.title),
+            titleAlignment: ListTileTitleAlignment.center,
+            subtitle: Text(
+              post.contents,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            isThreeLine: true,
+            trailing: Text(post.userID),
+          ),
+        ));
   }
 }

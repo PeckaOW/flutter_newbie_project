@@ -15,7 +15,8 @@ class PostPage extends StatelessWidget {
       required this.userID,
       required this.price,
       required this.rating,
-      required this.postID});
+      required this.postID,
+      required this.state});
 
   final String title; // Title
   final String contents; // Contents
@@ -23,6 +24,7 @@ class PostPage extends StatelessWidget {
   final int price; // Product price
   final double rating; //Rating of User
   final String postID; //Special ID of this post
+  final String state;
 
   String formatNum(int num) {
     if (num >= 1000000) {
@@ -80,6 +82,16 @@ class PostPage extends StatelessWidget {
             "acceptedID": await getUserID(user.email),
             "state": 'In Progress',
           }, SetOptions(merge: true));
+          await FirebaseFirestore.instance
+              .collection('_messages')
+              .doc(postID)
+              .set({
+            "acceptedBy": await getUserID(user.email),
+            "requestedBy": userID,
+            "messages": [
+              {'message': 'Hello!', 'user': userID}
+            ]
+          });
           errorMessage = 'Task Accepted!';
         } catch (e) {
           errorMessage = e.toString();
@@ -110,8 +122,8 @@ class PostPage extends StatelessWidget {
                   return const CircularProgressIndicator();
                 } else if (snapshot.hasError) {
                   return const Text('Error loading image');
-                } else if (snapshot.hasData) {
-                  return Image.network(snapshot.data!);
+                  //} else if (snapshot.hasData) {
+                  //return Image.network(snapshot.data!);
                 } else {
                   return const Text('No data available');
                 }
@@ -137,6 +149,17 @@ class PostPage extends StatelessWidget {
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                state,
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  fontSize: 18,
+                  color: Colors.orange,
+                ),
+              ),
+            ),
             /*
             Padding(
               padding: const EdgeInsets.all(8.0),
@@ -155,37 +178,38 @@ class PostPage extends StatelessWidget {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8.0),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      //아래에 showModalBottomSheet에서 accept 확정!
-                      showModalBottomSheet<void>(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return Container(
-                            height: 200,
-                            color: Colors.orange,
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: <Widget>[
-                                  const Text(
-                                      'Are you sure you want to continue?'),
-                                  ElevatedButton(
-                                    child: const Text('Accept Request'),
-                                    onPressed: () => makeAcceptedRequest(),
-                                  )
-                                ],
+                if (state == 'New')
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        //아래에 showModalBottomSheet에서 accept 확정!
+                        showModalBottomSheet<void>(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return Container(
+                              height: 200,
+                              color: Colors.orange,
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: <Widget>[
+                                    const Text(
+                                        'Are you sure you want to continue?'),
+                                    ElevatedButton(
+                                      child: const Text('Accept Request'),
+                                      onPressed: () => makeAcceptedRequest(),
+                                    )
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                    child: const Text('Accept Simbureum'),
+                            );
+                          },
+                        );
+                      },
+                      child: const Text('Accept'),
+                    ),
                   ),
-                ),
               ],
             ),
           ],

@@ -8,6 +8,8 @@ import 'firebase_options.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'package:image_picker/image_picker.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:firebase_storage/firebase_storage.dart';
@@ -81,7 +83,7 @@ class MainPage extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final updated = useState<bool>(true); //정보 추가 시, reload, delete시마다 부를 state
+    final updated = useState<bool>(false); //정보 추가 시, reload, delete시마다 부를 state
 
     final TextEditingController _textFieldControllerT =
         TextEditingController(); //title
@@ -90,12 +92,14 @@ class MainPage extends HookWidget {
     final TextEditingController _textFieldControllerP =
         TextEditingController(); //price
 
+    XFile? pickedImage = null;
+
     final userID = useState<String>('undefined');
     final user = FirebaseAuth.instance.currentUser;
 
-    final myPosts = useState<List<Post>>([]);
-    final acceptedPosts = useState<List<Post>>([]);
-    final newPosts = useState<List<Post>>([]);
+    List<Post> myPosts = [];
+    List<Post> acceptedPosts = [];
+    List<Post> newPosts = [];
 
     Future<String> retrieveUserID(String? myEmail) async {
       String myID = '';
@@ -183,15 +187,28 @@ class MainPage extends HookWidget {
     void _onDelete(String postID) async {
       //삭제 버튼 누를 시
       FirebaseFirestore.instance.collection('_posts').doc(postID).delete();
-      updated.value = false;
     }
 
-    void _addPost(String title, String contents, int price, String userID) {
+    Future<XFile?> pickImage() async {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+      if (image != null) {
+        return image;
+      }
+      return null;
+    }
+
+    void _addPost(
+      String title,
+      String contents,
+      int price,
+      String userID,
+      /*XFile? image*/
+    ) {
       if (user != null) {
-        FirebaseFirestore.instance
-            .collection('_posts')
-            .doc('$userID${DateTime.now().millisecondsSinceEpoch}')
-            .set({
+        String docID = '$userID${DateTime.now().millisecondsSinceEpoch}';
+        FirebaseFirestore.instance.collection('_posts').doc(docID).set({
           'acceptedBy': '',
           'acceptedID': '',
           'contents': contents,
@@ -201,8 +218,11 @@ class MainPage extends HookWidget {
           'title': title,
           'userid': userID,
         });
+
+        //if (image != null){
+        //my
+        //}
       }
-      updated.value = false;
     }
 
     Future<void> retrievePosts() async {
@@ -210,7 +230,7 @@ class MainPage extends HookWidget {
       if (user != null) {
         for (var element in posts) {
           if (element['data']['email'] == user.email) {
-            myPosts.value.add(Post(
+            myPosts.add(Post(
               contents: element['data']['contents'],
               title: element['data']['title'],
               userEmail: element['data']['email'],
@@ -222,7 +242,7 @@ class MainPage extends HookWidget {
               acceptedEmail: element['data']['acceptedBy'],
             ));
           } else if (element['data']['acceptedBy'] == user.email) {
-            acceptedPosts.value.add(Post(
+            acceptedPosts.add(Post(
                 contents: element['data']['contents'],
                 title: element['data']['title'],
                 userEmail: element['data']['email'],
@@ -233,7 +253,7 @@ class MainPage extends HookWidget {
                 acceptedID: element['data']['acceptedID'],
                 acceptedEmail: element['data']['acceptedBy']));
           } else {
-            newPosts.value.add(Post(
+            newPosts.add(Post(
                 contents: element['data']['contents'],
                 title: element['data']['title'],
                 userEmail: element['data']['email'],
@@ -248,6 +268,84 @@ class MainPage extends HookWidget {
       }
     }
 
+    Future<void> retrieveMy() async {
+      List<Map<String, dynamic>> posts = await getPostData();
+      if (user != null) {
+        for (var element in posts) {
+          if (element['data']['email'] == user.email) {
+            myPosts.add(Post(
+              contents: element['data']['contents'],
+              title: element['data']['title'],
+              userEmail: element['data']['email'],
+              userID: element['data']['userid'],
+              price: element['data']['price'],
+              postID: element['id'],
+              state: element['data']['state'],
+              acceptedID: element['data']['acceptedID'],
+              acceptedEmail: element['data']['acceptedBy'],
+            ));
+          }
+        }
+      }
+    }
+
+    Future<void> retrieveAccepted() async {
+      List<Map<String, dynamic>> posts = await getPostData();
+      if (user != null) {
+        for (var element in posts) {
+          if (element['data']['acceptedBy'] == user.email) {
+            acceptedPosts.add(Post(
+                contents: element['data']['contents'],
+                title: element['data']['title'],
+                userEmail: element['data']['email'],
+                userID: element['data']['userid'],
+                price: element['data']['price'],
+                postID: element['id'],
+                state: element['data']['state'],
+                acceptedID: element['data']['acceptedID'],
+                acceptedEmail: element['data']['acceptedBy']));
+          }
+        }
+      }
+    }
+
+    Future<void> retrieveNew() async {
+      List<Map<String, dynamic>> posts = await getPostData();
+      if (user != null) {
+        for (var element in posts) {
+          newPosts.add(Post(
+              contents: element['data']['contents'],
+              title: element['data']['title'],
+              userEmail: element['data']['email'],
+              userID: element['data']['userid'],
+              price: element['data']['price'],
+              postID: element['id'],
+              state: element['data']['state'],
+              acceptedID: element['data']['acceptedID'],
+              acceptedEmail: element['data']['acceptedBy']));
+        }
+      }
+    }
+
+    Future<void> refresh() async {
+      myPosts = [];
+      acceptedPosts = [];
+      newPosts = [];
+      await retrievePosts();
+      userID.value = 'undefined';
+    }
+
+    useEffect(() {
+      if (!updated.value) {
+        myPosts = [];
+        acceptedPosts = [];
+        newPosts = [];
+        retrievePosts();
+        updated.value = true;
+      }
+      return null;
+    }, [updated.value]);
+
     Future<void> _displayDialog() async {
       return showDialog<void>(
         context: context,
@@ -255,25 +353,25 @@ class MainPage extends HookWidget {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('Add a Post'),
-            content: Column(
-              children: [
-                TextField(
-                  controller: _textFieldControllerT,
-                  decoration: const InputDecoration(hintText: 'Type Title'),
-                  autofocus: true,
-                ),
-                TextField(
-                  controller: _textFieldControllerC,
-                  decoration: const InputDecoration(hintText: "Type Contents"),
-                  autofocus: true,
-                ),
-                TextField(
-                  controller: _textFieldControllerP,
-                  decoration: const InputDecoration(hintText: "Type Price"),
-                  autofocus: true,
-                )
-              ],
-            ),
+            content: Column(children: [
+              TextField(
+                controller: _textFieldControllerT,
+                decoration: const InputDecoration(hintText: 'Type Title'),
+                autofocus: true,
+              ),
+              TextField(
+                controller: _textFieldControllerC,
+                decoration: const InputDecoration(hintText: "Type Contents"),
+                autofocus: true,
+              ),
+              TextField(
+                controller: _textFieldControllerP,
+                decoration: const InputDecoration(hintText: "Type Price"),
+                autofocus: true,
+              ),
+              //IconButton(onPressed:() { pickedImage = await pickImage();}
+              //        ,icon: Icon(Icons.image))
+            ]),
             actions: <Widget>[
               OutlinedButton(
                 style: OutlinedButton.styleFrom(
@@ -314,148 +412,193 @@ class MainPage extends HookWidget {
       );
     }
 
-    if (!updated.value) {
-      myPosts.value = [];
-      acceptedPosts.value = [];
-      newPosts.value = [];
-      retrievePosts();
-      updated.value = true;
-    }
-
     return Scaffold(
-        appBar: AppBar(
-          centerTitle: true,
-          title: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              const Text("Simbureum"),
-              IconButton(
-                icon: Icon(Icons.person_2_rounded),
-                onPressed: () => onLogOut(),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        centerTitle: true,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            const Text("Simbureum"),
+            IconButton(
+              icon: Icon(Icons.person_2_rounded),
+              onPressed: () => onLogOut(),
+            ),
+            if (user != null)
+              Text(
+                "${user.email}",
+                style: TextStyle(fontSize: 10.0),
               ),
-              if (user != null)
-                Text(
-                  "${user.email}",
-                  style: TextStyle(fontSize: 10.0),
-                ),
-            ],
-          ),
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                'My Posts',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                children: myPosts.value
-                    .map((Post post) => Row(children: [
-                          PostCard(
-                            post: post,
-                          ),
-                          if (post.state == 'New')
-                            IconButton(
-                              icon: Icon(Icons.delete),
-                              onPressed: () => _onDelete(post.postID),
-                            ),
-                          if (post.state == 'In Progress')
-                            IconButton(
-                              icon: Icon(Icons.history_rounded),
-                              onPressed: () {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) => MessengerPage(
-                                              myID: post.userID,
-                                              postID: post.postID,
-                                              otherID: post.acceptedID,
-                                            ))); //postPage라는 파일 만들 것!
-                              },
-                            ),
-                        ]))
-                    .toList(),
-              ),
-            ),
-            const Divider(
-              thickness: 2,
-              height: 1,
-              color: Colors.black,
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                'Accepted Posts',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                children: acceptedPosts.value
-                    .map((Post post) => Row(children: [
-                          PostCard(
-                            post: post,
-                          ),
-                          if (post.state == 'In Progress')
-                            IconButton(
-                              icon: Icon(Icons.history_rounded),
-                              onPressed: () {
-                                Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                        builder: (context) => MessengerPage(
-                                              myID: post.userID,
-                                              postID: post.postID,
-                                              otherID: post.acceptedID,
-                                            ))); //postPage라는 파일 만들 것!
-                              },
-                            ),
-                        ]))
-                    .toList(),
-              ),
-            ),
-            const Divider(
-              thickness: 2,
-              height: 1,
-              color: Colors.black,
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                "New Posts",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                children: newPosts.value
-                    .map((Post post) => Row(children: [
-                          PostCard(
-                            post: post,
-                          ),
-                        ]))
-                    .toList(),
-              ),
-            ),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => _displayDialog(),
-          tooltip: 'Add new Post',
-          child: const Icon(Icons.add),
-        ));
+      ),
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(onPressed: () => refresh(), icon: Icon(Icons.refresh)),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              'My Posts',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+              ),
+            ),
+          ),
+          Expanded(
+              child: FutureBuilder(
+                  future: retrieveMy(),
+                  builder: ((context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+
+                    if (myPosts == []) {
+                      return Center(child: Text('No posts found'));
+                    }
+
+                    return ListView(
+                      shrinkWrap: true,
+                      children: myPosts
+                          .map((Post post) => Row(children: [
+                                PostCard(
+                                  post: post,
+                                ),
+                                if (post.state != 'In Progress')
+                                  IconButton(
+                                    icon: Icon(Icons.delete),
+                                    onPressed: () => _onDelete(post.postID),
+                                  ),
+                                if (post.state == 'In Progress')
+                                  IconButton(
+                                    icon: Icon(Icons.history_rounded),
+                                    onPressed: () {
+                                      Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (context) =>
+                                                  MessengerPage(
+                                                    myID: post.userID,
+                                                    postID: post.postID,
+                                                    otherID: post.acceptedID,
+                                                  ))); //postPage라는 파일 만들 것!
+                                    },
+                                  ),
+                              ]))
+                          .toList(),
+                    );
+                  }))),
+          const Divider(
+            thickness: 2,
+            height: 1,
+            color: Colors.black,
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              'Accepted Posts',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+              ),
+            ),
+          ),
+          Expanded(
+              child: FutureBuilder(
+                  future: retrieveAccepted(),
+                  builder: ((context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+
+                    if (acceptedPosts == []) {
+                      return Center(child: Text('No posts found'));
+                    }
+
+                    return ListView(
+                      shrinkWrap: true,
+                      children: acceptedPosts
+                          .map((Post post) => Row(children: [
+                                PostCard(
+                                  post: post,
+                                ),
+                                if (post.state == 'In Progress')
+                                  IconButton(
+                                    icon: Icon(Icons.history_rounded),
+                                    onPressed: () {
+                                      Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (context) =>
+                                                  MessengerPage(
+                                                    myID: post.acceptedID,
+                                                    postID: post.postID,
+                                                    otherID: post.userID,
+                                                  ))); //postPage라는 파일 만들 것!
+                                    },
+                                  ),
+                              ]))
+                          .toList(),
+                    );
+                  }))),
+          const Divider(
+            thickness: 2,
+            height: 1,
+            color: Colors.black,
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              "New Posts",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 24,
+              ),
+            ),
+          ),
+          Expanded(
+              child: FutureBuilder(
+                  future: retrieveNew(),
+                  builder: ((context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+
+                    if (newPosts == []) {
+                      return Center(child: Text('No posts found'));
+                    }
+
+                    return ListView(
+                      shrinkWrap: true,
+                      children: newPosts
+                          .map((Post post) => Row(children: [
+                                PostCard(
+                                  post: post,
+                                ),
+                              ]))
+                          .toList(),
+                    );
+                  }))),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _displayDialog(),
+        tooltip: 'Add new Post',
+        child: const Icon(Icons.add),
+        heroTag: 'btn1',
+      ),
+    );
   }
 }
 /*

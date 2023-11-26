@@ -78,8 +78,6 @@ class MessengerPage extends HookWidget {
 
     final messages = snapshot.data?.data()?['messages'] as List<dynamic> ?? [];
 
-    final acceptedID = snapshot.data?.data()?['acceptedBy'] as String ?? '';
-
     final requestedID = snapshot.data?.data()?['requestedBy'] as String ?? '';
 
     return Scaffold(
