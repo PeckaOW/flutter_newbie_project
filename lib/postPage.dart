@@ -29,8 +29,9 @@ class PostPage extends StatelessWidget {
       return '${num ~/ 1000000},${(num ~/ 1000) % 1000},${num % 1000}';
     } else if (num >= 1000) {
       return '${num ~/ 1000},${num % 1000}';
-    } else
+    } else {
       return num.toString();
+    }
   }
   //가격에 comma표시 해주는 함수 (1억원까지만 가능)
 
@@ -38,6 +39,31 @@ class PostPage extends StatelessWidget {
   Widget build(BuildContext context) {
     var user = FirebaseAuth.instance.currentUser;
     final imageUrl = postID; // URL of the image in Firebase storage
+
+    Future<String> getUserID(String? myEmail) async {
+      String myID = '';
+
+      try {
+        DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
+            .collection('_userinfo')
+            .doc(myEmail)
+            .get();
+
+        if (documentSnapshot.exists) {
+          Map<String, dynamic> data =
+              documentSnapshot.data() as Map<String, dynamic>; // Corrected line
+          myID = data['userid'] ?? '';
+        } else {
+          // Handle the case where the document does not exist
+          print("Document not found");
+        }
+      } catch (e) {
+        // Handle any errors here
+        print("Error fetching document: $e");
+      }
+
+      return myID;
+    }
 
     Future<void> makeAcceptedRequest() async {
       String errorMessage = '';
@@ -51,6 +77,7 @@ class PostPage extends StatelessWidget {
               .doc(postID)
               .set({
             "acceptedBy": user.email,
+            "acceptedID": await getUserID(user.email),
             "state": 'In Progress',
           }, SetOptions(merge: true));
           errorMessage = 'Task Accepted!';

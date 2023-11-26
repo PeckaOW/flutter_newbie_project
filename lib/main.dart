@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_newbie_project/postPage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'firebase_options.dart';
 
@@ -14,7 +15,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'login.dart';
 import 'postCard.dart';
 import 'messenger.dart';
-//import 'createAccount.dart';
+import 'postPage.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,15 +30,26 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Simbureum',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: //AccountScreen(),
-          LoginScreen(email: "", password: ""),
-      //ListPage(),
-    );
+        title: 'Simbureum',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          useMaterial3: true,
+        ),
+        home: //AccountScreen(),
+            LoginScreen(email: "", password: "")
+        //ListPage(),
+        //MessengerPage(
+        //  myID: 'kingsj1130',
+        //postID: 'kingsj11301701015736757',
+        //otherID: 'thomaskim1130'));
+        //PostPage(
+        //   contents: 'Hello',
+        //  title: 'nope',
+        // userID: 'kingsj1130',
+        //price: 10100,
+        //rating: 5.0,
+        //postID: 'kingsj11301701015997215'));
+        );
   }
 }
 
@@ -50,7 +62,8 @@ class Post {
       required this.price,
       required this.postID,
       required this.state,
-      required this.otherID}); //image 파일도 추가!
+      required this.acceptedID,
+      required this.acceptedEmail}); //image 파일도 추가!
 
   String title;
   String contents;
@@ -59,7 +72,8 @@ class Post {
   int price; //원 단위
   String postID;
   String state;
-  String otherID;
+  String acceptedID;
+  String acceptedEmail;
 }
 
 class MainPage extends HookWidget {
@@ -76,67 +90,71 @@ class MainPage extends HookWidget {
     final TextEditingController _textFieldControllerP =
         TextEditingController(); //price
 
-    var user = FirebaseAuth.instance.currentUser;
-    String userID = 'undefined';
-    String? userEmail = 'undefined';
+    final userID = useState<String>('undefined');
+    final user = FirebaseAuth.instance.currentUser;
 
-    List<Post> myPosts = [];
-    List<Post> acceptedPosts = [];
-    List<Post> newPosts = [];
+    final myPosts = useState<List<Post>>([]);
+    final acceptedPosts = useState<List<Post>>([]);
+    final newPosts = useState<List<Post>>([]);
 
-    /*
-    final documentStream = useMemoized(() => FirebaseFirestore.instance
-        .collection('_userID')
-        .doc(postID)
-        .snapshots());
-    final snapshot = useStream(documentStream);
-    */
+    Future<String> retrieveUserID(String? myEmail) async {
+      String myID = '';
 
-    Future<DocumentSnapshot> getUserData() async {
-      if (user != null) {
-        userEmail = user.email;
-        return FirebaseFirestore.instance
+      if (myEmail == 'undefined') return 'undefined';
+
+      try {
+        DocumentSnapshot documentSnapshot = await FirebaseFirestore.instance
             .collection('_userinfo')
-            .doc(user.email)
+            .doc(myEmail)
             .get();
+
+        if (documentSnapshot.exists) {
+          Map<String, dynamic> data =
+              documentSnapshot.data() as Map<String, dynamic>; // Corrected line
+          myID = data['userid'] ?? '';
+        } else {
+          // Handle the case where the document does not exist
+          print("Document not found");
+        }
+      } catch (e) {
+        // Handle any errors here
+        print("Error fetching document: $e");
       }
-      throw Exception('Not logged in');
+
+      return myID;
     }
 
-    Future<DocumentSnapshot> getOtherData(String email) async {
-      return FirebaseFirestore.instance
-          .collection('_userinfo')
-          .doc(email)
-          .get();
-    }
+    useEffect(() {
+      if (userID.value == 'undefined' && user != null) {
+        retrieveUserID(user.email).then((id) {
+          userID.value = id;
+        });
+      }
+      return null;
+    }, [userID.value]);
 
-    Future<List<dynamic>> getPostData() async {
-      CollectionReference _collectionRef =
-          FirebaseFirestore.instance.collection('_posts');
-      QuerySnapshot querySnapshot = await _collectionRef.get();
-      return querySnapshot.docs.map((doc) => (doc.id, doc.data())).toList();
+    Future<List<Map<String, dynamic>>> getPostData() async {
+      try {
+        QuerySnapshot querySnapshot =
+            await FirebaseFirestore.instance.collection('_posts').get();
+
+        // Map each document to a map of {id: <docId>, data: <docData>}
+        return querySnapshot.docs.map((doc) {
+          return {"id": doc.id, "data": doc.data()};
+        }).toList();
+      } catch (e) {
+        // Handle exceptions
+        print("Error fetching collection: $e");
+        return [];
+      }
     }
 
     Future _signOut() async {
       await FirebaseAuth.instance.signOut();
     }
 
-    void retrieveUserID() async {
-      getUserData().then((snapshot) {
-        if (snapshot.exists) {
-          Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
-          userID = data?['userid'];
-        } else {
-          userID = 'undefined';
-        }
-      }).catchError((error) {
-        userID = 'undefined';
-        final snackBar = SnackBar(content: Text(error));
-        ScaffoldMessenger.of(context).showSnackBar(snackBar);
-      });
-    }
-
-    Future<String?> retrieveUserIDof(String email) async {
+    /*
+    Future<String> retrieveUserIDof(String email) async {
       getOtherData(email).then((snapshot) {
         if (snapshot.exists) {
           Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
@@ -149,6 +167,7 @@ class MainPage extends HookWidget {
       });
       return 'undefined';
     }
+    */
 
     void onLogOut() async {
       //로그아웃 버튼 누를 시
@@ -174,6 +193,7 @@ class MainPage extends HookWidget {
             .doc('$userID${DateTime.now().millisecondsSinceEpoch}')
             .set({
           'acceptedBy': '',
+          'acceptedID': '',
           'contents': contents,
           'email': user.email,
           'price': price,
@@ -185,41 +205,47 @@ class MainPage extends HookWidget {
       updated.value = false;
     }
 
-    void retrievePosts() async {
-      List<dynamic> posts = getPostData() as List<dynamic>;
-      posts.forEach((element) {
-        if (element[1]['email'] == userEmail) {
-          myPosts.add(Post(
-              contents: element[1]['contents'],
-              title: element[1]['title'],
-              userEmail: element[1]['email'],
-              userID: element[1]['userid'],
-              price: element[1]['price'],
-              postID: element[0],
-              state: element[1]['state'],
-              otherID: retrieveUserIDof(element[1]['acceptedBy']) as String));
-        } else if (element[1]['acceptedBy'] == userEmail) {
-          acceptedPosts.add(Post(
-              contents: element[1]['contents'],
-              title: element[1]['title'],
-              userEmail: element[1]['email'],
-              userID: element[1]['userid'],
-              price: element[1]['price'],
-              postID: element[0],
-              state: element[1]['state'],
-              otherID: userID));
-        } else {
-          newPosts.add(Post(
-              contents: element[1]['contents'],
-              title: element[1]['title'],
-              userEmail: element[1]['email'],
-              userID: element[1]['userid'],
-              price: element[1]['price'],
-              postID: element[0],
-              state: element[1]['state'],
-              otherID: 'undefined'));
+    Future<void> retrievePosts() async {
+      List<Map<String, dynamic>> posts = await getPostData();
+      if (user != null) {
+        for (var element in posts) {
+          if (element['data']['email'] == user.email) {
+            myPosts.value.add(Post(
+              contents: element['data']['contents'],
+              title: element['data']['title'],
+              userEmail: element['data']['email'],
+              userID: element['data']['userid'],
+              price: element['data']['price'],
+              postID: element['id'],
+              state: element['data']['state'],
+              acceptedID: element['data']['acceptedID'],
+              acceptedEmail: element['data']['acceptedBy'],
+            ));
+          } else if (element['data']['acceptedBy'] == user.email) {
+            acceptedPosts.value.add(Post(
+                contents: element['data']['contents'],
+                title: element['data']['title'],
+                userEmail: element['data']['email'],
+                userID: element['data']['userid'],
+                price: element['data']['price'],
+                postID: element['id'],
+                state: element['data']['state'],
+                acceptedID: element['data']['acceptedID'],
+                acceptedEmail: element['data']['acceptedBy']));
+          } else {
+            newPosts.value.add(Post(
+                contents: element['data']['contents'],
+                title: element['data']['title'],
+                userEmail: element['data']['email'],
+                userID: element['data']['userid'],
+                price: element['data']['price'],
+                postID: element['id'],
+                state: element['data']['state'],
+                acceptedID: element['data']['acceptedID'],
+                acceptedEmail: element['data']['acceptedBy']));
+          }
         }
-      });
+      }
     }
 
     Future<void> _displayDialog() async {
@@ -273,7 +299,7 @@ class MainPage extends HookWidget {
                         _textFieldControllerT.text,
                         _textFieldControllerC.text,
                         int.parse(_textFieldControllerP.text),
-                        userID);
+                        userID.value);
                   } catch (e) {
                     final snackBar =
                         SnackBar(content: Text('Price must be Integer!'));
@@ -289,9 +315,9 @@ class MainPage extends HookWidget {
     }
 
     if (!updated.value) {
-      myPosts = [];
-      acceptedPosts = [];
-      newPosts = [];
+      myPosts.value = [];
+      acceptedPosts.value = [];
+      newPosts.value = [];
       retrievePosts();
       updated.value = true;
     }
@@ -317,75 +343,111 @@ class MainPage extends HookWidget {
         ),
         body: Column(
           children: [
-            ListView(
-              children: myPosts
-                  .map((Post post) => Row(children: [
-                        PostCard(
-                          post: post,
-                        ),
-                        if (post.state == 'New')
-                          IconButton(
-                            icon: Icon(Icons.delete),
-                            onPressed: () => _onDelete(post.postID),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'My Posts',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                children: myPosts.value
+                    .map((Post post) => Row(children: [
+                          PostCard(
+                            post: post,
                           ),
-                        if (post.state == 'In Progress')
-                          IconButton(
-                            icon: Icon(Icons.history_rounded),
-                            onPressed: () {
-                              Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => MessengerPage(
-                                            myID: post.userID,
-                                            postID: post.postID,
-                                            otherID: post.otherID,
-                                          ))); //postPage라는 파일 만들 것!
-                            },
-                          ),
-                      ]))
-                  .toList(),
+                          if (post.state == 'New')
+                            IconButton(
+                              icon: Icon(Icons.delete),
+                              onPressed: () => _onDelete(post.postID),
+                            ),
+                          if (post.state == 'In Progress')
+                            IconButton(
+                              icon: Icon(Icons.history_rounded),
+                              onPressed: () {
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) => MessengerPage(
+                                              myID: post.userID,
+                                              postID: post.postID,
+                                              otherID: post.acceptedID,
+                                            ))); //postPage라는 파일 만들 것!
+                              },
+                            ),
+                        ]))
+                    .toList(),
+              ),
             ),
             const Divider(
               thickness: 2,
               height: 1,
               color: Colors.black,
             ),
-            ListView(
-              children: acceptedPosts
-                  .map((Post post) => Row(children: [
-                        PostCard(
-                          post: post,
-                        ),
-                        if (post.state == 'In Progress')
-                          IconButton(
-                            icon: Icon(Icons.history_rounded),
-                            onPressed: () {
-                              Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => MessengerPage(
-                                            myID: post.userID,
-                                            postID: post.postID,
-                                            otherID: post.otherID,
-                                          ))); //postPage라는 파일 만들 것!
-                            },
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'Accepted Posts',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                children: acceptedPosts.value
+                    .map((Post post) => Row(children: [
+                          PostCard(
+                            post: post,
                           ),
-                      ]))
-                  .toList(),
+                          if (post.state == 'In Progress')
+                            IconButton(
+                              icon: Icon(Icons.history_rounded),
+                              onPressed: () {
+                                Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) => MessengerPage(
+                                              myID: post.userID,
+                                              postID: post.postID,
+                                              otherID: post.acceptedID,
+                                            ))); //postPage라는 파일 만들 것!
+                              },
+                            ),
+                        ]))
+                    .toList(),
+              ),
             ),
             const Divider(
               thickness: 2,
               height: 1,
               color: Colors.black,
             ),
-            ListView(
-              children: newPosts
-                  .map((Post post) => Row(children: [
-                        PostCard(
-                          post: post,
-                        ),
-                      ]))
-                  .toList(),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                "New Posts",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                children: newPosts.value
+                    .map((Post post) => Row(children: [
+                          PostCard(
+                            post: post,
+                          ),
+                        ]))
+                    .toList(),
+              ),
             ),
           ],
         ),
@@ -396,3 +458,53 @@ class MainPage extends HookWidget {
         ));
   }
 }
+/*
+class PostList extends StatelessWidget {
+  PostList({super.key, required this.posts});
+
+  final List<Post> posts;
+
+  Stream<List<Map<String, dynamic>>> getPostData() {
+    return FirebaseFirestore.instance.collection('_posts').snapshots().map(
+        (snapshot) => snapshot.docs
+            .map((doc) => {'id': doc.id, 'data': doc.data()})
+            .toList());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: getPostData(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return CircularProgressIndicator();
+        }
+
+        if (snapshot.hasError) {
+          return Text('Error: ${snapshot.error}');
+        }
+
+        if (!snapshot.hasData) {
+          return Text('No data available');
+        }
+
+        List<Map<String, dynamic>> documents = snapshot.data!;
+
+        return ListView.builder(
+          itemCount: documents.length,
+          itemBuilder: (context, index) {
+            var document = documents[index];
+            var documentID = document['id'];
+            var documentData = document['data'];
+            // Build your widget with documentID and documentData
+            return ListTile(
+              title: Text(documentID),
+              subtitle: Text(documentData.toString()),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+*/

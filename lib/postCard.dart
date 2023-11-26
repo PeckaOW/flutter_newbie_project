@@ -15,7 +15,7 @@ import 'postPage.dart';
 
 //이건 update되야 하는 My posts, accepted가 아닌 postcard들! --> 따로 active PostCard 정의할 것! --> 또한 state update할 때에는 함수를 parameter로 가져와서 그 함수 내부에서 updated 변수 update할것!
 class PostCard extends StatelessWidget {
-  PostCard({super.key, required this.post});
+  const PostCard({super.key, required this.post});
 
   final Post post; //이미지도 고려할 것!
 
@@ -37,9 +37,8 @@ class PostCard extends StatelessWidget {
   }
   */
 
-  @override
-  double userRating = 5.0;
-  bool updated = false;
+  //double userRating = 5.0;
+  //bool updated = false;
   Future<DocumentSnapshot> getUserData() async {
     return FirebaseFirestore.instance
         .collection('_userinfo')
@@ -47,6 +46,7 @@ class PostCard extends StatelessWidget {
         .get();
   }
 
+  /*
   void retrieveUserRating() async {
     getUserData().then((snapshot) {
       if (snapshot.data() == null) {
@@ -62,12 +62,15 @@ class PostCard extends StatelessWidget {
       updated = true;
     });
   }
+  */
 
   @override
   Widget build(BuildContext context) {
+    /*
     if (!updated) {
       retrieveUserRating();
     }
+    */
 
     return Card(
       //card를 제거하면 그냥 테두리 없는 글씨처럼 된다!
@@ -82,7 +85,7 @@ class PostCard extends StatelessWidget {
                         price: post.price,
                         userID: post.userID,
                         postID: post.postID,
-                        rating: userRating,
+                        rating: 5.0,
                       ))); //postPage라는 파일 만들 것!
         },
         //leading:사진

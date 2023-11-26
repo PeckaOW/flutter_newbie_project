@@ -34,9 +34,10 @@ class MessengerPage extends HookWidget {
           'message': messageText.value,
           'user': myID,
         });
+        print(messages);
 
         await FirebaseFirestore.instance
-            .collection('messages')
+            .collection('_messages')
             .doc(postID)
             .set({'messages': messages}, SetOptions(merge: true));
 
@@ -51,7 +52,7 @@ class MessengerPage extends HookWidget {
       try {
         await FirebaseFirestore.instance.collection('_posts').doc(postID).set({
           "state": 'Complete',
-        });
+        }, SetOptions(merge: true));
         errorMessage = 'Task Ended!';
       } catch (e) {
         errorMessage = e.toString();
@@ -106,7 +107,7 @@ class MessengerPage extends HookWidget {
                   return ListTile(
                     title: Align(
                       alignment:
-                          isMine ? Alignment.centerLeft : Alignment.centerRight,
+                          isMine ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
                         padding:
                             EdgeInsets.symmetric(horizontal: 12, vertical: 8),
