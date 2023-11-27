@@ -1,8 +1,11 @@
+import 'dart:html';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'starRating.dart';
 
 class MessengerPage extends HookWidget {
   MessengerPage(
@@ -19,6 +22,7 @@ class MessengerPage extends HookWidget {
   Widget build(BuildContext context) {
     final textEditingController = useTextEditingController();
     final messageText = useState('');
+    bool toReview = false;
 
     final documentStream = useMemoized(() => FirebaseFirestore.instance
         .collection('_messages')
@@ -53,7 +57,13 @@ class MessengerPage extends HookWidget {
         await FirebaseFirestore.instance.collection('_posts').doc(postID).set({
           "state": 'Complete',
         }, SetOptions(merge: true));
+
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => StarRating(userID: otherID)));
         errorMessage = 'Task Ended!';
+        messageText.value = 'Review Complete!';
       } catch (e) {
         errorMessage = e.toString();
       }
@@ -123,6 +133,10 @@ class MessengerPage extends HookWidget {
                 },
               ),
             ),
+            /*if (toReview)
+              Center(
+                child: StarRating(userID: otherID),
+              ),*/
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Row(
